@@ -102,7 +102,7 @@ mod seg_tree {
         }
     }
 }
-
+#[allow(unused_must_use)]
 fn main() {
     // ## static RMQ
     // let mut s = String::new();
