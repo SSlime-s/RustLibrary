@@ -7,7 +7,7 @@ mod seg_tree {
         F: Fn(&T, &T) -> T,
     {
         datas: Vec<T>,
-        func: F,
+        op: F,
         zero: T,
         n: usize,
     }
@@ -16,7 +16,7 @@ mod seg_tree {
         T: Clone + Copy,
         F: Fn(&T, &T) -> T,
     {
-        pub fn new(n_: usize, func: F, zero: T) -> SegTree<T, F>
+        pub fn new(n_: usize, op: F, zero: T) -> SegTree<T, F>
         where
             T: Clone,
         {
@@ -26,13 +26,13 @@ mod seg_tree {
             }
             SegTree::<T, F> {
                 datas: vec![zero; 2 * n + 1],
-                func,
+                op,
                 zero,
                 n,
             }
         }
 
-        pub fn from(a: &Vec<T>, func: F, zero: T) -> SegTree<T, F> {
+        pub fn from(a: &Vec<T>, op: F, zero: T) -> SegTree<T, F> {
             let mut n = 1;
             while n < a.len() {
                 n <<= 1
@@ -45,11 +45,11 @@ mod seg_tree {
                 datas[i + n] = a[i];
             }
             for i in (1..n).rev() {
-                datas[i] = func(&datas[2 * i], &datas[2 * i + 1]);
+                datas[i] = op(&datas[2 * i], &datas[2 * i + 1]);
             }
             SegTree::<T, F> {
                 datas,
-                func,
+                op,
                 zero,
                 n,
             }
@@ -57,13 +57,13 @@ mod seg_tree {
 
         pub fn update(&mut self, idx: usize, x: T) {
             let mut i = idx + self.n;
-            self.datas[i] = (self.func)(&self.datas[i], &x);
+            self.datas[i] = (self.op)(&self.datas[i], &x);
             loop {
                 i >>= 1;
                 if i <= 0 {
                     break;
                 }
-                self.datas[i] = (self.func)(&self.datas[2 * i], &self.datas[2 * i + 1]);
+                self.datas[i] = (self.op)(&self.datas[2 * i], &self.datas[2 * i + 1]);
             }
         }
 
@@ -75,7 +75,7 @@ mod seg_tree {
                 if i <= 0 {
                     break;
                 }
-                self.datas[i] = (self.func)(&self.datas[2 * i], &self.datas[2 * i + 1]);
+                self.datas[i] = (self.op)(&self.datas[2 * i], &self.datas[2 * i + 1]);
             }
         }
 
@@ -98,7 +98,7 @@ mod seg_tree {
             }
             let left = self.get_recu(l, r, node * 2, now_l, (now_l + now_r) / 2);
             let right = self.get_recu(l, r, node * 2 + 1, (now_l + now_r) / 2, now_r);
-            (self.func)(&left, &right)
+            (self.op)(&left, &right)
         }
     }
 }
