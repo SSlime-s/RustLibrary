@@ -1,104 +1,82 @@
 // -*- coding:utf-8-unix -*-
 
 #[allow(dead_code)]
-mod seg_tree {
-    pub struct SegTree<T, F>
-    where
-        F: Fn(&T, &T) -> T,
-    {
-        datas: Vec<T>,
-        op: F,
-        zero: T,
-        n: usize,
+mod segtree {
+    pub trait Monoid {
+        type S: Clone;
+        fn op(a: &Self::S, b: &Self::S) -> Self::S;
+        fn id() -> Self::S;
     }
-    impl<T, F> SegTree<T, F>
-    where
-        T: Clone + Copy,
-        F: Fn(&T, &T) -> T,
-    {
-        pub fn new(n_: usize, op: F, zero: T) -> SegTree<T, F>
-        where
-            T: Clone,
-        {
-            let mut n = 1;
-            while n < n_ {
-                n <<= 1
-            }
-            SegTree::<T, F> {
-                datas: vec![zero; 2 * n + 1],
-                op,
-                zero,
-                n,
+
+    pub struct SegTree<M>
+    where M: Monoid {
+        datas: Vec<M::S>,
+        n: usize,
+        size: usize,
+        log: usize,
+    }
+    impl<M: Monoid> SegTree<M> {
+        pub fn new(n: usize) -> Self {
+            vec![M::id(); n].into()
+        }
+
+        pub fn set(&mut self, mut p: usize, x: M::S) {
+            assert!(p < self.n);
+            p += self.size;
+            self.datas[p] = x;
+            for i in 1..=self.log {
+                self.update(p >> i);
             }
         }
 
-        pub fn from(a: &Vec<T>, op: F, zero: T) -> SegTree<T, F> {
-            let mut n = 1;
-            while n < a.len() {
-                n <<= 1
-            }
-            let a = (0..n)
-                .map(|idx| if idx < a.len() { a[idx] } else { zero })
-                .collect::<Vec<_>>();
-            let mut datas = vec![zero; 2 * n + 1];
-            for i in 0..n {
-                datas[i + n] = a[i];
-            }
-            for i in (1..n).rev() {
-                datas[i] = op(&datas[2 * i], &datas[2 * i + 1]);
-            }
-            SegTree::<T, F> {
-                datas,
-                op,
-                zero,
-                n,
-            }
+        pub fn get(&self, p: usize) -> M::S {
+            assert!(p < self.n);
+            self.datas[p + self.size].clone()
         }
 
-        pub fn update(&mut self, idx: usize, x: T) {
-            let mut i = idx + self.n;
-            self.datas[i] = (self.op)(&self.datas[i], &x);
-            loop {
-                i >>= 1;
-                if i <= 0 {
-                    break;
-                }
-                self.datas[i] = (self.op)(&self.datas[2 * i], &self.datas[2 * i + 1]);
-            }
-        }
-
-        pub fn change(&mut self, idx: usize, x: T) {
-            let mut i = idx + self.n;
-            self.datas[i] = x;
-            loop {
-                i >>= 1;
-                if i <= 0 {
-                    break;
-                }
-                self.datas[i] = (self.op)(&self.datas[2 * i], &self.datas[2 * i + 1]);
-            }
-        }
-
-        pub fn get(&self, l: usize, r: usize) -> T {
+        pub fn prod(&self, l: usize, r: usize) -> M::S {
+            assert!(l <= r && r <= self.n);
             if l == r {
-                self.zero
-            } else if r > l {
-                self.get_recu(l, r, 1, 0, self.n)
+                M::id()
             } else {
-                self.get_recu(r, l, 1, 0, self.n)
+                self.prod_recu(l, r, 1, 0, self.size)
             }
         }
 
-        fn get_recu(&self, l: usize, r: usize, node: usize, now_l: usize, now_r: usize) -> T {
+        fn prod_recu(&self, l: usize, r: usize, node: usize, now_l: usize, now_r: usize) -> M::S {
             if l >= now_r || r <= now_l {
-                return self.zero;
+                M::id()
+            } else if l <= now_l && now_r <= r {
+                self.datas[node].clone()
+            } else {
+                let left = self.prod_recu(l, r, node*2, now_l, (now_l + now_r)/2);
+                let right = self.prod_recu(l, r, node*2 + 1, (now_l + now_r)/2, now_r);
+                M::op(&left, &right)
             }
-            if l <= now_l && now_r <= r {
-                return self.datas[node];
+        }
+
+        pub fn all_prod(&self) -> M::S {
+            self.datas[1].clone()
+        }
+
+        // TODO: 二分探索 (max_right, max_left)
+
+        fn update(&mut self, i: usize) {
+            self.datas[i] = M::op(&self.datas[2*i], &self.datas[2*i + 1]);
+        }
+    }
+    impl<M: Monoid> From<Vec<M::S>> for SegTree<M> {
+        fn from(v: Vec<M::S>) -> Self {
+            let n = v.len();
+            let log = (32 - (n as u32).saturating_sub(1).leading_zeros()) as usize;
+            let size = 1 << log;
+            let mut datas = vec![M::id(); 2*size];
+            datas[size..(size+n)].clone_from_slice(&v);
+            let mut seg = Self {n, log, size, datas};
+            for i in (1..size).rev() {
+                seg.update(i)
             }
-            let left = self.get_recu(l, r, node * 2, now_l, (now_l + now_r) / 2);
-            let right = self.get_recu(l, r, node * 2 + 1, (now_l + now_r) / 2, now_r);
-            (self.op)(&left, &right)
+            seg
         }
     }
 }
@@ -114,7 +92,7 @@ fn main() {
     // let mut s = String::new();
     // std::io::stdin().read_line(&mut s).unwrap();
     // s.trim_end().to_owned();
-    //
+
     // let mut ws = s.split_whitespace();
     // let a = (0..n)
     //     .map(|_| {
@@ -133,81 +111,42 @@ fn main() {
     //         (l, r)
     //     })
     //     .collect::<Vec<_>>();
-    // let rmq = seg_tree::SegTree::<_, _>::from(&a, |&a, &b| -> i64 {a.min(b)}, 1_000_000_001i64);
+    // // ---------------------------
+    // struct Min {};
+    // impl segtree::Monoid for Min {
+    //     type S = i64;
+    //     fn op(a: &Self::S, b: &Self::S) -> Self::S {
+    //         *a.min(b)
+    //     }
+    //     fn id() -> Self::S {
+    //         i64::max_value()
+    //     }
+    // }
+    // let seg: segtree::SegTree<Min> = a.clone().into();
     // for (l, r) in lr {
-    //     println!("{}", rmq.get(l, r))
+    //     println!("{}", seg.prod(l, r));
     // }
 
     // ## Point Add Range Sum
-    // let mut s = String::new();
-    // std::io::stdin().read_line(&mut s).unwrap();
-    // s.trim_end().to_owned();
-    // let mut ws = s.split_whitespace();
-    // let n: usize = ws.next().unwrap().parse().unwrap();
-    // let q: usize = ws.next().unwrap().parse().unwrap();
-    // let mut s = String::new();
-    // std::io::stdin().read_line(&mut s).unwrap();
-    // s.trim_end().to_owned();
-    // let mut ws = s.split_whitespace();
-    // let a = (0..n)
-    //     .map(|_| {
-    //         let a: i64 = ws.next().unwrap().parse().unwrap();
-    //         a
-    //     })
-    //     .collect::<Vec<_>>();
-    // enum Query {
-    //     Q0(usize, i64),
-    //     Q1(usize, usize),
-    // }
-    // let querys = (0..q)
-    //     .map(|_| {
-    //         let mut s = String::new();
-    //         std::io::stdin().read_line(&mut s).unwrap();
-    //         s.trim_end().to_owned();
-    //         let mut ws = s.split_whitespace();
-    //         let flag: usize = ws.next().unwrap().parse().unwrap();
-    //         if flag == 0 {
-    //             let i: usize = ws.next().unwrap().parse().unwrap();
-    //             let x: i64 = ws.next().unwrap().parse().unwrap();
-    //             Query::Q0(i, x)
-    //         } else {
-    //             let l: usize = ws.next().unwrap().parse().unwrap();
-    //             let r: usize = ws.next().unwrap().parse().unwrap();
-    //             Query::Q1(l, r)
-    //         }
-    //     })
-    //     .collect::<Vec<_>>();
-    // // -----------------------------
-    // let mut rmq = seg_tree::SegTree::<_, _>::from(&a, |&a, &b| -> i64 {a + b}, 0);
-    // for query in querys {
-    //     match query {
-    //         Query::Q0(i, x) => rmq.update(i, x),
-    //         Query::Q1(l, r) => println!("{}", rmq.get(l, r))
-    //     }
-    // }
-
-    // ## Point Set Range Composite
     let mut s = String::new();
     std::io::stdin().read_line(&mut s).unwrap();
     s.trim_end().to_owned();
     let mut ws = s.split_whitespace();
     let n: usize = ws.next().unwrap().parse().unwrap();
     let q: usize = ws.next().unwrap().parse().unwrap();
-    const MOD: u64 = 998244353;
-    let ab = (0..n)
+    let mut s = String::new();
+    std::io::stdin().read_line(&mut s).unwrap();
+    s.trim_end().to_owned();
+    let mut ws = s.split_whitespace();
+    let a = (0..n)
         .map(|_| {
-            let mut s = String::new();
-            std::io::stdin().read_line(&mut s).unwrap();
-            s.trim_end().to_owned();
-            let mut ws = s.split_whitespace();
             let a: u64 = ws.next().unwrap().parse().unwrap();
-            let b: u64 = ws.next().unwrap().parse().unwrap();
-            (a, b)
+            a
         })
         .collect::<Vec<_>>();
     enum Query {
-        Q0(usize, u64, u64),
-        Q1(usize, usize, u64),
+        Q0(usize, u64),
+        Q1(usize, usize),
     }
     let querys = (0..q)
         .map(|_| {
@@ -218,30 +157,96 @@ fn main() {
             let flag: usize = ws.next().unwrap().parse().unwrap();
             if flag == 0 {
                 let i: usize = ws.next().unwrap().parse().unwrap();
-                let c: u64 = ws.next().unwrap().parse().unwrap();
-                let d: u64 = ws.next().unwrap().parse().unwrap();
-                Query::Q0(i, c, d)
+                let x: u64 = ws.next().unwrap().parse().unwrap();
+                Query::Q0(i, x)
             } else {
                 let l: usize = ws.next().unwrap().parse().unwrap();
                 let r: usize = ws.next().unwrap().parse().unwrap();
-                let x: u64 = ws.next().unwrap().parse().unwrap();
-                Query::Q1(l, r, x)
+                Query::Q1(l, r)
             }
         })
         .collect::<Vec<_>>();
     // -----------------------------
-    let mut rmq = seg_tree::SegTree::<_, _>::from(
-        &ab,
-        |&(a, b), &(c, d)| -> (u64, u64) { (a * c % MOD, (c * b % MOD + d) % MOD) },
-        (1, 0),
-    );
-    for query in querys {
-        match query {
-            Query::Q0(i, c, d) => rmq.change(i, (c, d)),
-            Query::Q1(l, r, x) => {
-                let (a, b) = rmq.get(l, r);
-                println!("{}", (a * x % MOD + b) % MOD)
-            }
+    struct Sum {};
+    impl segtree::Monoid for Sum {
+        type S = u64;
+        fn op(a: &Self::S, b: &Self::S) -> Self::S {
+            *a + *b
+        }
+        fn id() -> Self::S {
+            0
         }
     }
+    let mut seg: segtree::SegTree<Sum> = a.clone().into();
+    for query in querys {
+        match query {
+            Query::Q0(i, x) => seg.set(i, seg.get(i) + x),
+            Query::Q1(l, r) => println!("{}", seg.prod(l, r)),
+        }
+    }
+
+    // ## Point Set Range Composite
+    // let mut s = String::new();
+    // std::io::stdin().read_line(&mut s).unwrap();
+    // s.trim_end().to_owned();
+    // let mut ws = s.split_whitespace();
+    // let n: usize = ws.next().unwrap().parse().unwrap();
+    // let q: usize = ws.next().unwrap().parse().unwrap();
+    // const MOD: u64 = 998244353;
+    // let ab = (0..n)
+    //     .map(|_| {
+    //         let mut s = String::new();
+    //         std::io::stdin().read_line(&mut s).unwrap();
+    //         s.trim_end().to_owned();
+    //         let mut ws = s.split_whitespace();
+    //         let a: u64 = ws.next().unwrap().parse().unwrap();
+    //         let b: u64 = ws.next().unwrap().parse().unwrap();
+    //         (a, b)
+    //     })
+    //     .collect::<Vec<_>>();
+    // enum Query {
+    //     Q0(usize, u64, u64),
+    //     Q1(usize, usize, u64),
+    // }
+    // let querys = (0..q)
+    //     .map(|_| {
+    //         let mut s = String::new();
+    //         std::io::stdin().read_line(&mut s).unwrap();
+    //         s.trim_end().to_owned();
+    //         let mut ws = s.split_whitespace();
+    //         let flag: usize = ws.next().unwrap().parse().unwrap();
+    //         if flag == 0 {
+    //             let i: usize = ws.next().unwrap().parse().unwrap();
+    //             let c: u64 = ws.next().unwrap().parse().unwrap();
+    //             let d: u64 = ws.next().unwrap().parse().unwrap();
+    //             Query::Q0(i, c, d)
+    //         } else {
+    //             let l: usize = ws.next().unwrap().parse().unwrap();
+    //             let r: usize = ws.next().unwrap().parse().unwrap();
+    //             let x: u64 = ws.next().unwrap().parse().unwrap();
+    //             Query::Q1(l, r, x)
+    //         }
+    //     })
+    //     .collect::<Vec<_>>();
+    // // -----------------------------
+    // struct Func {};
+    // impl segtree::Monoid for Func {
+    //     type S = (u64, u64);
+    //     fn op(a: &Self::S, b: &Self::S) -> Self::S {
+    //         (a.0 * b.0 % MOD, (b.0 * a.1 % MOD + b.1) % MOD)
+    //     }
+    //     fn id() -> Self::S {
+    //         (1, 0)
+    //     }
+    // }
+    // let mut seg: segtree::SegTree<Func> = ab.clone().into();
+    // for query in querys {
+    //     match query {
+    //         Query::Q0(i, c, d) => seg.set(i, (c, d)),
+    //         Query::Q1(l, r, x) => {
+    //             let (a, b) = seg.prod(l, r) as (u64, u64);
+    //             println!("{}", (a * x % MOD + b) % MOD);
+    //         }
+    //     }
+    // }
 }
