@@ -3,17 +3,46 @@
 ## 使い方
 ### 構築
 ```rust
-let mut rmq = seg_tree::SegTree::<_, _>::from(&a, |&a, &b| -> i64 {a + b}, 0);
+let mut seg: Segtree<M> = v.clone().into();
 ```
-### 作用
+or
 ```rust
-rmq.update(i, x);
+let mut seg = Segtree::<M>::new(n);
 ```
-### 上書き
+
+### 更新
 ```rust
-rmq.change(i, x);
+seg.set(i, x);
 ```
 ### 取得
 ```rust
-rmq.get(l, r);
+seg.prod(l, r);
+```
+
+## Monoid Example
+### RSQ
+```rust
+struct Sum {};
+impl segtree::Monoid for Sum {
+    type S = u64;
+    fn op(a: &Self::S, b: &Self::S) -> Self::S {
+        *a + *b
+    }
+    fn id() -> Self::S {
+        0
+    }
+}
+```
+### RMQ
+```rust
+struct Min {};
+impl segtree::Monoid for Min {
+    type S = i64;
+    fn op(a: &Self::S, b: &Self::S) -> Self::S {
+        *a.min(b)
+    }
+    fn id() -> Self::S {
+        i64::max_value()
+    }
+}
 ```
