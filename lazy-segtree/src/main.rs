@@ -145,6 +145,7 @@ mod lazy_segtree {
 use proconio::{input, marker::Usize1};
 
 fn main() {
+    // 典型90 029 Long Bricks
     // https://atcoder.jp/contests/typical90/tasks/typical90_ac
     input! {
         w: usize,
